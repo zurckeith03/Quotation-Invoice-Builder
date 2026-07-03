@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Invoice & Quotation Builder</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --dark:#1A1A2E;--mid:#16213E;--accent:#E94560;--gold:#C9A84C;
+  --offwhite:#F8F6F1;--light:#F2F2F2;--gray:#888;--lgray:#BBB;
+  --line:#E0DDD6;--white:#FFF;
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --sans:'DM Sans',sans-serif;
+}
+
+/* PRINT */
+@media print {
+  .no-print,.toolbar,.tab-nav{display:none!important}
+  body{background:white!important;padding:0!important}
+  .tab-panel{display:block!important}
+  .tab-panel.hidden-tab{display:none!important}
+  .invoice-card,.quotation-card{box-shadow:none!important;max-width:100%!important}
+  [contenteditable]{border:none!important;outline:none!important;background:transparent!important;padding:0!important}
+  .del-row,.add-row-btn,.inc-toggle,.pkg-toggle,.confirm-bar,.quot-all-packages{display:none!important}
+  .quot-print-selected{display:table!important}
+  @page{margin:0.5in}
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+  .inv-header,.inv-footer{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  .accent-stripe{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  table.items thead tr, table.pkg-table thead tr{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  .date-chip,.inc-item,.event-cell,.contract-section{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  .deposit-box{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  .inv-status{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  .selected-summary{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;display:block!important}
+  .pkg-selected{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+}
+
+body{background:var(--offwhite);font-family:var(--sans);color:var(--dark);min-height:100vh;padding:0}
+
+/* TOOLBAR */
+.toolbar{background:var(--mid);padding:10px 24px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100;flex-wrap:wrap}
+.toolbar-brand{font-family:var(--serif);font-size:16px;color:var(--gold);letter-spacing:0.08em;margin-right:auto}
+.tb-btn{background:transparent;border:1px solid rgba(255,255,255,0.2);color:#fff;padding:7px 16px;font-family:var(--sans);font-size:11px;letter-spacing:0.12em;text-transform:uppercase;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.tb-btn:hover{background:rgba(255,255,255,0.08)}
+.tb-btn.active{background:var(--accent);border-color:var(--accent)}
+.tb-btn.gold{background:var(--gold);border-color:var(--gold);color:var(--dark);font-weight:500}
+.tb-btn.gold:hover{opacity:0.9}
+.tb-btn.green{background:#2E7D52;border-color:#2E7D52;color:#fff}
+.tb-btn.green:hover{background:#256644}
+.tb-sep{width:1px;height:24px;background:rgba(255,255,255,0.15);flex-shrink:0}
+.edit-hint{font-size:11px;color:rgba(255,255,255,0.4);font-style:italic}
+
+/* TABS */
+.tab-nav{background:var(--dark);display:flex;border-bottom:3px solid var(--accent);max-width:860px;margin:0 auto;padding:0 20px}
+.tab-btn{padding:12px 28px;font-family:var(--sans);font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:var(--lgray);background:none;border:none;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-3px}
+.tab-btn:hover{color:var(--white)}
+.tab-btn.active{color:var(--gold);border-bottom-color:var(--gold);font-weight:500}
+
+/* TAB PANELS */
+.tab-panel{display:none;padding:32px 20px 60px;max-width:860px;margin:0 auto}
+.tab-panel.active-tab{display:block}
+
+/* EDIT MODE */
+.edit-mode [contenteditable]{outline:none;border-bottom:1.5px dashed var(--accent);cursor:text;min-width:30px;display:inline-block}
+.edit-mode [contenteditable]:focus{background:rgba(233,69,96,0.05);border-bottom-style:solid}
+.edit-mode [contenteditable]:empty::before{content:attr(data-ph);color:var(--lgray);font-style:italic}
+.edit-mode .add-row-btn{display:flex!important}
+.edit-mode .del-row{display:inline-flex!important}
+.edit-mode .inc-toggle{display:inline-block!important}
+.edit-mode .pkg-toggle{display:inline-flex!important}
+.add-row-btn{display:none;align-items:center;gap:6px;padding:10px 16px;background:none;border:none;color:var(--accent);font-family:var(--sans);font-size:12px;cursor:pointer;border-top:1px dashed var(--line);width:100%}
+.add-row-btn:hover{background:rgba(233,69,96,0.04)}
+.del-row{display:none;background:none;border:none;color:var(--lgray);cursor:pointer;padding:2px 6px;font-size:16px;line-height:1}
+.del-row:hover{color:var(--accent)}
+.inc-toggle,.pkg-toggle{display:none;background:none;border:1px solid var(--line);color:var(--gray);font-size:10px;padding:2px 8px;cursor:pointer;font-family:var(--sans);flex-shrink:0}
+.inc-toggle:hover,.pkg-toggle:hover{border-color:var(--accent);color:var(--accent)}
+.inc-row{display:flex;justify-content:space-between;padding:8px 0;font-size:13px;border-bottom:1px solid var(--line);color:var(--gray);align-items:center;gap:8px}
+.inc-row.row-hidden{display:none}
+.edit-mode .inc-row.row-hidden{display:flex!important;opacity:0.38}
+
+/* CARD */
+.invoice-card,.quotation-card{background:var(--white);box-shadow:0 4px 40px rgba(26,26,46,0.10)}
+
+/* HEADER */
+.inv-header{background:var(--dark);padding:44px 52px 36px;display:flex;justify-content:space-between;align-items:flex-start;gap:24px}
+.brand-name{font-family:var(--serif);font-size:30px;font-weight:300;color:var(--white);letter-spacing:0.08em;line-height:1}
+.brand-tagline{font-size:10px;letter-spacing:0.22em;color:var(--gold);text-transform:uppercase;margin-top:6px}
+.inv-meta{text-align:right}
+.inv-label{font-family:var(--serif);font-size:36px;font-weight:300;color:var(--white);letter-spacing:0.06em;line-height:1}
+.inv-number{font-size:12px;color:var(--lgray);margin-top:6px;letter-spacing:0.10em}
+.inv-status{display:inline-block;margin-top:10px;background:var(--accent);color:var(--white);font-size:10px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;padding:4px 12px}
+.accent-stripe{height:4px;background:linear-gradient(90deg,var(--accent) 0%,var(--gold) 100%)}
+
+/* BODY */
+.inv-body{padding:44px 52px}
+.parties-row{display:grid;grid-template-columns:1fr 1px 1fr;margin-bottom:44px}
+.party-divider{background:var(--line);margin:0 32px}
+.party-tag{font-size:9px;letter-spacing:0.22em;text-transform:uppercase;color:var(--accent);font-weight:500;margin-bottom:12px}
+.party-name{font-family:var(--serif);font-size:20px;color:var(--dark);margin-bottom:4px}
+.party-detail{font-size:13px;color:var(--gray);line-height:1.7}
+.party-detail > span{display:block}
+.date-row{display:flex;gap:12px;margin-bottom:40px;padding-bottom:32px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.date-chip{background:var(--offwhite);padding:14px 18px;flex:1;min-width:110px;border-left:3px solid var(--gold)}
+.date-chip-label{font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:var(--lgray);margin-bottom:4px}
+.date-chip-value{font-family:var(--serif);font-size:16px;color:var(--dark)}
+.event-grid{display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid var(--line)}
+.event-cell{padding:14px 18px;border-right:1px solid var(--line)}
+.event-cell:last-child{border-right:none}
+.event-cell-label{font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:var(--lgray);margin-bottom:4px}
+.event-cell-value{font-family:var(--serif);font-size:15px;color:var(--dark)}
+.section-label{font-size:9px;letter-spacing:0.22em;text-transform:uppercase;color:var(--accent);font-weight:500;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+
+/* TABLES */
+table.items{width:100%;border-collapse:collapse;font-size:13px}
+table.items thead tr{background:var(--dark)}
+table.items thead th{padding:12px 16px;text-align:left;font-size:9px;font-weight:500;letter-spacing:0.18em;text-transform:uppercase;color:var(--lgray);font-family:var(--sans)}
+table.items thead th.r{text-align:right}
+table.items tbody tr{border-bottom:1px solid var(--line)}
+table.items tbody tr:nth-child(even){background:var(--offwhite)}
+table.items tbody td{padding:13px 16px;vertical-align:middle;color:var(--dark)}
+table.items tbody td.r{text-align:right}
+.item-name{font-family:var(--serif);font-size:15px;display:block;margin-bottom:2px}
+.item-sub{font-size:11px;color:var(--lgray)}
+.amount-cell{font-weight:500}
+.selected-badge{display:inline-block;background:var(--dark);color:var(--gold);font-size:9px;letter-spacing:0.12em;text-transform:uppercase;padding:2px 8px;margin-left:6px;vertical-align:middle}
+
+/* PACKAGE TABLE (QUOTATION) */
+table.pkg-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px}
+table.pkg-table thead tr{background:var(--dark)}
+table.pkg-table thead th{padding:11px 14px;text-align:left;font-size:9px;font-weight:500;letter-spacing:0.18em;text-transform:uppercase;color:var(--lgray)}
+table.pkg-table thead th.r{text-align:right}
+table.pkg-table tbody tr{border-bottom:1px solid var(--line);transition:background 0.15s}
+table.pkg-table tbody tr:nth-child(even){background:var(--offwhite)}
+table.pkg-table tbody tr.pkg-selected{background:#FFF6F0!important;outline:2px solid var(--accent);outline-offset:-2px}
+table.pkg-table tbody tr.pkg-hidden{display:none}
+.edit-mode table.pkg-table tbody tr.pkg-hidden{display:table-row!important;opacity:0.35}
+table.pkg-table tbody td{padding:13px 14px;vertical-align:middle;color:var(--dark)}
+table.pkg-table tbody td.r{text-align:right}
+.pkg-select-btn{background:none;border:1px solid var(--line);color:var(--gray);font-size:10px;padding:4px 10px;cursor:pointer;font-family:var(--sans);white-space:nowrap}
+.pkg-select-btn:hover{border-color:var(--accent);color:var(--accent)}
+.pkg-selected .pkg-select-btn{background:var(--accent);border-color:var(--accent);color:white}
+
+/* TOTALS */
+.totals-block{display:flex;justify-content:flex-end;margin-bottom:40px}
+.totals-inner{width:320px}
+.totals-row{display:flex;justify-content:space-between;padding:8px 0;font-size:13px;border-bottom:1px solid var(--line);color:var(--gray)}
+.totals-row.grand{padding:14px 0 0;color:var(--dark);font-weight:500;border-bottom:none}
+.totals-row.grand .t-label{font-family:var(--serif);font-size:18px;font-style:italic}
+.totals-row.grand .t-value{font-family:var(--serif);font-size:22px;color:var(--accent);font-weight:600}
+.deposit-box{margin-top:10px;background:#FFF6F0;border-left:3px solid var(--accent);padding:10px 14px;display:flex;justify-content:space-between;align-items:center}
+.deposit-label{font-size:11px;color:var(--accent);letter-spacing:0.08em;text-transform:uppercase}
+.deposit-value{font-family:var(--serif);font-size:17px;color:var(--accent);font-weight:600}
+
+/* INCLUSIONS */
+.inclusions-section{margin-bottom:36px;padding-bottom:36px;border-bottom:1px solid var(--line)}
+.inc-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+.inc-item{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:var(--offwhite);border-left:2px solid var(--gold)}
+.inc-item.full{grid-column:1/-1}
+.website-inc{display:none}
+.website-inc.visible{display:flex}
+.inc-num{font-family:var(--serif);font-size:20px;color:var(--gold);font-weight:300;line-height:1;min-width:24px}
+.inc-title{font-size:12px;font-weight:500;color:var(--dark);margin-bottom:2px}
+.inc-desc{font-size:11px;color:var(--gray);line-height:1.5}
+
+/* TERMS */
+.terms-section{margin-bottom:40px}
+.terms-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;margin-top:14px}
+.term-item{font-size:12px;color:var(--gray);line-height:1.6;padding-left:10px;border-left:1.5px solid var(--line)}
+.term-item strong{color:var(--dark);font-weight:500;display:block;margin-bottom:1px}
+
+/* INFO TABLE (QUOTATION CLIENT BLOCK) */
+table.info-table{width:100%;border-collapse:collapse;margin-bottom:32px}
+table.info-table td{padding:11px 14px;font-size:13px;border-bottom:1px solid var(--line)}
+table.info-table td:first-child{font-weight:500;color:var(--dark);background:var(--offwhite);width:36%;font-size:12px;letter-spacing:0.04em}
+table.info-table td:last-child{color:var(--dark);min-width:120px}
+table.info-table td:last-child:empty::before,
+table.info-table td[data-empty="true"]::before{content:attr(data-ph);color:var(--lgray);font-style:italic;font-size:13px}
+.edit-mode table.info-table td:last-child{border-bottom:1.5px dashed var(--accent);cursor:text}
+.edit-mode table.info-table td:last-child:focus{background:rgba(233,69,96,0.04);border-bottom-style:solid;outline:none}
+
+/* CONTRACT */
+.contract-section{border:1px solid var(--line);padding:28px 32px;margin-bottom:36px;background:var(--offwhite)}
+.contract-title{font-family:var(--serif);font-size:18px;color:var(--dark);margin-bottom:6px}
+.contract-body{font-size:13px;color:var(--gray);line-height:1.8;margin-bottom:20px}
+.contract-fields{display:grid;grid-template-columns:1fr 1fr;gap:16px 32px;margin-bottom:24px}
+.cf-label{font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:var(--lgray);margin-bottom:6px}
+.cf-value{font-family:var(--serif);font-size:15px;color:var(--dark);border-bottom:1px solid var(--dark);padding-bottom:4px;min-height:28px}
+
+/* SIGNATURE */
+.sig-section{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-bottom:44px;padding-top:20px;border-top:1px solid var(--line)}
+.sig-line{height:1px;background:var(--dark);margin-bottom:8px;margin-top:48px}
+.sig-label{font-size:11px;color:var(--lgray);letter-spacing:0.08em}
+
+/* FOOTER */
+.inv-footer{background:var(--dark);padding:24px 52px;display:flex;justify-content:space-between;align-items:center}
+.footer-note{font-size:11px;color:var(--lgray);font-style:italic;font-family:var(--serif)}
+.footer-tagline{font-size:10px;letter-spacing:0.18em;color:var(--gold);text-transform:uppercase}
+
+/* CONFIRM BAR */
+.confirm-bar{background:var(--white);border:1px solid var(--line);border-left:4px solid #2E7D52;padding:16px 24px;display:flex;align-items:center;gap:16px;margin-top:20px;flex-wrap:wrap}
+.confirm-bar-text{flex:1;font-size:13px;color:var(--gray)}
+.confirm-bar-text strong{color:var(--dark);display:block;margin-bottom:2px}
+.confirm-check{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--dark);cursor:pointer}
+.confirm-check input{width:16px;height:16px;accent-color:var(--accent);cursor:pointer}
+
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(26,26,46,0.6);z-index:999;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal-box{background:var(--white);padding:40px;max-width:440px;width:90%;text-align:center}
+.modal-icon{font-size:40px;margin-bottom:12px}
+.modal-title{font-family:var(--serif);font-size:24px;color:var(--dark);margin-bottom:8px}
+.modal-body{font-size:13px;color:var(--gray);line-height:1.7;margin-bottom:28px}
+.modal-actions{display:flex;gap:12px;justify-content:center}
+.modal-btn{padding:11px 28px;font-family:var(--sans);font-size:12px;letter-spacing:0.12em;text-transform:uppercase;cursor:pointer;border:1px solid var(--line)}
+.modal-btn.primary{background:var(--dark);color:var(--white);border-color:var(--dark)}
+.modal-btn.primary:hover{background:var(--accent);border-color:var(--accent)}
+.modal-btn.secondary{background:none;color:var(--gray)}
+.modal-btn.secondary:hover{border-color:var(--dark);color:var(--dark)}
+
+/* SELECTED SUMMARY (QUOTATION) */
+.selected-summary{background:var(--dark);padding:16px 20px;margin-bottom:0;display:none}
+.selected-summary.visible{display:block}
+.ss-label{font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:var(--gold);margin-bottom:6px}
+.ss-value{font-family:var(--serif);font-size:20px;color:var(--white)}
+
+/* Empty field line (replaces ugly dashes) */
+.empty-field{display:inline-block;min-width:160px;height:1px;background:var(--dark);vertical-align:middle;opacity:0.22;margin-left:2px}
+
+/* Tab panel hidden */
+.tab-panel.hidden-tab{display:none}
+</style>
+
+<!-- TOOLBAR -->
+<div class="toolbar no-print">
+  <span class="toolbar-brand">The Scent Gallery</span>
+  <span class="edit-hint" id="hint-inv">Click Edit to customize</span>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" id="btn-edit-inv" onclick="toggleEdit()">&#9998; Edit</button>
+  <button class="tb-btn" id="btn-add-inv" onclick="addRow('inv')">+ Add Item</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn gold" id="btn-print-inv" onclick="printTab('inv')">&#128438; Print / PDF</button>
+</div>
+
+<div class="tab-nav no-print">
+  <button class="tab-btn active" id="tab-inv" onclick="switchTab('inv')">Invoice</button>
+  <button class="tab-btn" id="tab-quot" onclick="switchTab('quot')">Quotation</button>
+  <button class="tab-btn" id="tab-cont" onclick="switchTab('cont')">Contract</button>
+</div>
+
+<div class="tab-panel active-tab" id="panel-inv">
+<div class="invoice-card" id="invoice">
+  <div class="inv-header">
+    <div>
+      <img src="logo.png" alt="the scent gallery" style="height:auto;width:auto;filter:invert(1);display:block;margin-bottom:6px"/>
+      
+    </div>
+    <div class="inv-meta">
+      <div class="inv-label">Invoice</div>
+      <div class="inv-number" contenteditable="false" data-ph="INV-2026-001">No. INV-2026-001</div>
+      <div class="inv-status" contenteditable="false" data-ph="Status">Awaiting Payment</div>
+    </div>
+  </div>
+  <div class="accent-stripe"></div>
+  <div class="inv-body">
+
+    <div class="parties-row">
+      <div>
+        <div class="party-tag">Billed To</div>
+        <div class="party-name" contenteditable="false" data-ph="Client Name">Client Name</div>
+        <div class="party-detail">
+          <span>Event: <span contenteditable="false" data-ph="Event Type">Debut Celebration</span></span>
+          <span>Contact: <span contenteditable="false" data-ph="+63"></span></span>
+          <span>Email: <span contenteditable="false" data-ph="email"></span></span>
+        </div>
+      </div>
+      <div class="party-divider"></div>
+      <div style="padding-left:32px">
+        <div class="party-tag">Issued By</div>
+        <div class="party-name" contenteditable="false" data-ph="Business Name">The Scent Gallery</div>
+        <div class="party-detail">
+          <span><span contenteditable="false" data-ph="Address">Mendez, Cavite</span></span>
+          <span>Philippines</span>
+          <span>Contact: <span contenteditable="false" data-ph="+63">9395167776</span></span>
+          <span>Email: <span contenteditable="false" data-ph="email">cruzkeith71@gmail.com</span></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="date-row">
+      <div class="date-chip"><div class="date-chip-label">Invoice Date</div><div class="date-chip-value" contenteditable="false" data-ph="Date">June 19, 2026</div></div>
+      <div class="date-chip"><div class="date-chip-label">Event Date</div><div class="date-chip-value" contenteditable="false" data-ph="Event Date"></div></div>
+      <div class="date-chip"><div class="date-chip-label">Due Date</div><div class="date-chip-value" contenteditable="false" data-ph="Due Date"></div></div>
+      <div class="date-chip"><div class="date-chip-label">Quotation Ref.</div><div class="date-chip-value" contenteditable="false" data-ph="QT-2026-001">QT-2026-001</div></div>
+	   <div class="date-chip"><div class="date-chip-label">Contract Ref.</div><div class="date-chip-value" contenteditable="false" data-ph="QT-2026-001">CT-2026-001</div></div>
+    </div>
+
+    <div style="margin-bottom:36px">
+      <div class="section-label">Event Details</div>
+      <div class="event-grid">
+        <div class="event-cell"><div class="event-cell-label">Event Type</div><div class="event-cell-value" contenteditable="false" data-ph="e.g. Debut">Debut Celebration</div></div>
+        <div class="event-cell"><div class="event-cell-label">Venue</div><div class="event-cell-value" contenteditable="false" data-ph="Venue"></div></div>
+        <div class="event-cell"><div class="event-cell-label">Guest Count</div><div class="event-cell-value" contenteditable="false" data-ph="e.g. 100 pax">100 pax</div></div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:32px">
+      <div class="section-label">Order Summary</div>
+      <table class="items" id="inv-items-table">
+        <thead><tr>
+          <th style="width:36%">Item</th><th>Size</th><th>Type</th>
+          <th class="r">Unit Price</th><th class="r">Qty</th><th class="r">Amount</th>
+          <th class="r no-print" style="width:28px"></th>
+        </tr></thead>
+        <tbody id="inv-body">
+          <tr><td><span class="item-name" contenteditable="false" data-ph="Item">Package 1 — Essence Package</span><span class="item-sub" contenteditable="false" data-ph="Desc">Personalized label and Customized Packaging</span></td><td><span contenteditable="false" data-ph="size">5ml</span></td><td><span contenteditable="false" data-ph="EDT/EDP">EDT</span></td><td class="r"><span class="unit-price" contenteditable="false" data-ph="0.00" oninput="recalcInv()">₱64.42</span></td><td class="r"><span class="qty" contenteditable="false" data-ph="1" oninput="recalcInv()">100</span></td><td class="r amount-cell"><span class="amount">&#8369;6,442.00</span></td><td class="no-print"><button class="del-row" onclick="delRow(this)">&times;</button></td></tr>
+          <tr><td><span class="item-name" contenteditable="false" data-ph="Item">Package 2 — Signature Package</span><span class="item-sub" contenteditable="false" data-ph="Desc">Personalized label, Customized Packaging and Digital Invitation Website</span></td><td><span contenteditable="false" data-ph="size">5ml</span></td><td><span contenteditable="false" data-ph="EDT/EDP">EDP</span></td><td class="r"><span class="unit-price" contenteditable="false" data-ph="0.00" oninput="recalcInv()">₱68.20</span></td><td class="r"><span class="qty" contenteditable="false" data-ph="1" oninput="recalcInv()">100</span></td><td class="r amount-cell"><span class="amount">&#8369;6,820.00</span></td><td class="no-print"><button class="del-row" onclick="delRow(this)">&times;</button></td></tr>
+          <tr><td><span class="item-name" contenteditable="false" data-ph="Item">Package 3 — Prestige Package</span><span class="item-sub" contenteditable="false" data-ph="Desc">Personalized label and Customized Packaging</span></td><td><span contenteditable="false" data-ph="size">10ml</span></td><td><span contenteditable="false" data-ph="EDT/EDP">EDT</span></td><td class="r"><span class="unit-price" contenteditable="false" data-ph="0.00" oninput="recalcInv()">₱75.84</span></td><td class="r"><span class="qty" contenteditable="false" data-ph="1" oninput="recalcInv()">100</span></td><td class="r amount-cell"><span class="amount">&#8369;7,584.00</span></td><td class="no-print"><button class="del-row" onclick="delRow(this)">&times;</button></td></tr>
+          <tr><td><span class="item-name" contenteditable="false" data-ph="Item">Package 4 — Elite Package</span><span class="item-sub" contenteditable="false" data-ph="Desc">Personalized label, Customized Packaging and Digital Invitation Website</span></td><td><span contenteditable="false" data-ph="size">10ml</span></td><td><span contenteditable="false" data-ph="EDT/EDP">EDP</span></td><td class="r"><span class="unit-price" contenteditable="false" data-ph="0.00" oninput="recalcInv()">₱83.40</span></td><td class="r"><span class="qty" contenteditable="false" data-ph="1" oninput="recalcInv()">100</span></td><td class="r amount-cell"><span class="amount">&#8369;8,340.00</span></td><td class="no-print"><button class="del-row" onclick="delRow(this)">&times;</button></td></tr>
+        </tbody>
+      </table>
+      <button class="add-row-btn no-print" onclick="addRow('inv')">&#43; Add line item</button>
+    </div>
+
+    <div class="totals-block">
+      <div class="totals-inner">
+        <div class="totals-row" style="font-weight:500;color:var(--dark)"><span>Subtotal</span><span id="inv-subtotal">&#8369;0.00</span></div>
+        <div class="inc-row" id="inv-inc1"><span class="i-label">Personalization &amp; Label</span><span>Included</span><button class="inc-toggle no-print" onclick="toggleInc(this)">Hide</button></div>
+        <div class="inc-row" id="inv-inc2"><span class="i-label">Customized Packaging</span><span>Included</span><button class="inc-toggle no-print" onclick="toggleInc(this)">Hide</button></div>
+        <div class="inc-row" id="inv-inc3"><span class="i-label">Digital Event Website</span><span>Included</span><button class="inc-toggle no-print" onclick="toggleInc(this)">Hide</button></div>
+        <div class="inc-row" id="inv-inc4"><span class="i-label">Delivery / Logistics</span><span>Included</span><button class="inc-toggle no-print" onclick="toggleInc(this)">Hide</button></div>
+        <div class="totals-row grand"><span class="t-label">Total Due</span><span class="t-value" id="inv-total">&#8369;0.00</span></div>
+        <div class="deposit-box">
+          <span class="deposit-label">Downpayment
+            <select class="no-print" onchange="recalcInv()" id="inv-dpct" style="margin-left:6px;border:none;background:transparent;color:var(--accent);font-size:11px;cursor:pointer">
+              <option value="50">50%</option><option value="30">30%</option><option value="100">Full</option>
+            </select>
+          </span>
+          <span class="deposit-value" id="inv-deposit">&#8369;0.00</span>
+        </div>
+      </div>
+    </div>
+
+   <!-- <div class="inclusions-section">
+      <div class="section-label">Every Piece Includes</div>
+      <div class="inc-grid">
+        <div class="inc-item"><div class="inc-num">01</div><div><div class="inc-title" contenteditable="false" data-ph="Title">Premium Fragrance Oil</div><div class="inc-desc" contenteditable="false" data-ph="Desc">EDT or EDP blend, mixed to specification</div></div></div>
+        <div class="inc-item"><div class="inc-num">02</div><div><div class="inc-title" contenteditable="false" data-ph="Title">Glass Spray Bottle</div><div class="inc-desc" contenteditable="false" data-ph="Desc">5ml or 10ml glass atomizer, selected per package</div></div></div>
+        <div class="inc-item"><div class="inc-num">03</div><div><div class="inc-title" contenteditable="false" data-ph="Title">Personalized Label</div><div class="inc-desc" contenteditable="false" data-ph="Desc">Custom-printed with guest of honor's name and event date</div></div></div>
+        <div class="inc-item"><div class="inc-num">04</div><div><div class="inc-title" contenteditable="false" data-ph="Title">Customized Packaging</div><div class="inc-desc" contenteditable="false" data-ph="Desc">Branded gift box with ribbon, coordinated to event motif</div></div></div>
+        <div class="inc-item full"><div class="inc-num">05</div><div><div class="inc-title" contenteditable="false" data-ph="Title">Digital Event Website</div><div class="inc-desc" contenteditable="false" data-ph="Desc">A personalized event website accessible via QR code on the label. Suitable for debut, wedding, or any celebration.</div></div></div>
+      </div>
+    </div>
+
+    <div class="terms-section">
+      <div class="section-label">Terms and Conditions</div>
+      <div class="terms-grid">
+        <div class="term-item"><strong>Payment</strong><span contenteditable="false" data-ph="Terms">50% downpayment to confirm order. Balance due upon delivery or pick-up.</span></div>
+        <div class="term-item"><strong>Lead Time</strong><span contenteditable="false" data-ph="Terms">10 to 14 business days from confirmed order and approved design.</span></div>
+        <div class="term-item"><strong>Cancellation</strong><span contenteditable="false" data-ph="Terms">Downpayments are non-refundable once production has commenced.</span></div>
+        <div class="term-item"><strong>Design Approval</strong><span contenteditable="false" data-ph="Terms">Client reviews and approves label design before printing. No changes after approval.</span></div>
+        <div class="term-item"><strong>Revisions</strong><span contenteditable="false" data-ph="Terms">Up to 2 label revisions included. Additional revisions subject to a fee.</span></div>
+        <div class="term-item"><strong>Delivery</strong><span contenteditable="false" data-ph="Terms">Logistics are included. A responsible party must be available to receive the order.</span></div>
+      </div>
+    </div> -->
+
+     <!-- SIGNATURE -->
+    <div class="sig-section">
+      <div><div class="sig-line"></div><div class="sig-label">Client Signature over Printed Name</div></div>
+      <div><div class="sig-line"></div><div class="sig-label">Authorized Representative</div></div>
+    </div>
+    <!-- <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-bottom:44px">
+      <div><div class="sig-line" style="margin-top:0"></div><div class="sig-label">Date Signed</div></div>
+      <div><div class="sig-line" style="margin-top:0"></div><div class="sig-label">Date Signed</div></div>
+    </div> -->
+  </div>
+  <div class="inv-footer">
+    <div class="footer-note" contenteditable="false" data-ph="Footer">"Thank you for letting us be part of your celebration."</div>
+    <!-- <div class="footer-tagline" contenteditable="false" data-ph="Tagline">Personalized &nbsp;&middot;&nbsp; Elegant &nbsp;&middot;&nbsp; Memorable</div> -->
+  </div>
+</div>
+</div> 
+
+<!-- ══ QUOTATION TAB ══ -->
+<div class="tab-panel hidden-tab" id="panel-quot">
+<div class="quotation-card" id="quotation">
+
+
+  <div class="inv-header">
+    <div>
+      <img src="logo.png" alt="the scent gallery" style="height:auto;width:auto;filter:invert(1);display:block;margin-bottom:6px"/>
+      
+    </div>
+    <div class="inv-meta">
+      <div class="inv-label">Quotation</div>
+      <div class="inv-number" contenteditable="false" data-ph="QT-2026-001">No. QT-2026-001</div>
+      <div class="inv-status" contenteditable="false" data-ph="Status">Pending Approval</div>
+    </div>
+  </div>
+  <div class="accent-stripe"></div>
+  <div class="inv-body">
+    <div style="margin-bottom:36px">
+      <div class="section-label">Client Information</div>
+      <table class="info-table">
+        <tr><td>Event Type</td><td contenteditable="false" data-ph="Debut / Wedding / Other">Debut Celebration</td></tr>
+        <tr><td>Client Name</td><td contenteditable="false" data-ph="Full name" data-empty="true"></td></tr>
+        <tr><td>Event Date</td><td contenteditable="false" data-ph="MM/DD/YYYY" data-empty="true"></td></tr>
+        <tr><td>Event Venue</td><td contenteditable="false" data-ph="Venue" data-empty="true"></td></tr>
+        <tr><td>Contact Number</td><td contenteditable="false" data-ph="+63" data-empty="true"></td></tr>
+        <tr><td>Email Address</td><td contenteditable="false" data-ph="email@example.com" data-empty="true"></td></tr>
+        <tr><td>Number of Guests</td><td contenteditable="false" data-ph="e.g. 100 pax">100 pax</td></tr>
+        <tr><td>Quotation Date</td><td contenteditable="false" data-ph="Date">June 19, 2026</td></tr>
+        <tr><td>Quotation No.</td><td contenteditable="false" data-ph="QT-2026-001">QT-2026-001</td></tr>
+      </table>
+    </div>
+
+    <!-- Package options (screen only) -->
+    <div style="margin-bottom:32px" class="quot-all-packages">
+      <div class="section-label">Package Options
+        <span style="margin-left:auto;font-size:10px;color:var(--lgray);letter-spacing:0.1em;font-weight:400;text-transform:none" class="no-print">Click a row to select</span>
+      </div>
+      <p style="font-size:13px;color:var(--gray);margin-bottom:16px">Select one package and fragrance type. Click a row to mark your selection.</p>
+      <table class="pkg-table" id="quot-pkg-table">
+        <thead><tr>
+          <th style="width:34%">Package</th><th>Size</th><th>Type</th>
+          <th class="r">Price / Piece</th><th class="r">Qty</th><th class="r">Total</th>
+          <th class="no-print" style="width:80px;text-align:center">Select</th>
+          <th class="r no-print" style="width:28px"></th>
+        </tr></thead>
+        <tbody id="quot-body">
+          <tr onclick="selectPkg(this)" style="cursor:pointer">
+            <td><span class="item-name" contenteditable="false">Package 1 — Essence Package</span> <span class="item-sub" contenteditable="false" data-ph="Desc">Personalized label and Customized Packaging</span></td>
+            <td><span contenteditable="false">5ml</span></td><td><span contenteditable="false">EDT (8% to 15% oil)</span></td>
+            <td class="r"><span class="q-price" contenteditable="false" oninput="recalcQuot()">64.42</span></td>
+            <td class="r"><span class="q-qty" contenteditable="false" oninput="recalcQuot()">100</span></td>
+            <td class="r q-amt"><span class="q-amount">&#8369;6,442.00</span></td>
+            <td class="no-print" style="text-align:center"><button class="pkg-select-btn" onclick="event.stopPropagation();selectPkg(this.closest('tr'))">Select</button></td>
+            <td class="no-print"><button class="del-row" onclick="event.stopPropagation();delRow(this)">&times;</button></td>
+          </tr>
+          <tr onclick="selectPkg(this)" style="cursor:pointer">
+            <td><span class="item-name" contenteditable="false">Package 2 — Signature Package</span> <span class="item-sub" contenteditable="false" data-ph="Desc">Personalized label, Customized Packaging and Digital Invitation Website</span></td>
+            <td><span contenteditable="false">5ml</span></td><td><span contenteditable="false">EDP (15% to 25% oil)</span></td>
+            <td class="r"><span class="q-price" contenteditable="false" oninput="recalcQuot()">68.20</span></td>
+            <td class="r"><span class="q-qty" contenteditable="false" oninput="recalcQuot()">100</span></td>
+            <td class="r q-amt"><span class="q-amount">&#8369;6,820.00</span></td>
+            <td class="no-print" style="text-align:center"><button class="pkg-select-btn" onclick="event.stopPropagation();selectPkg(this.closest('tr'))">Select</button></td>
+            <td class="no-print"><button class="del-row" onclick="event.stopPropagation();delRow(this)">&times;</button></td>
+          </tr>
+          <tr onclick="selectPkg(this)" style="cursor:pointer">
+            <td><span class="item-name" contenteditable="false">Package 3 — Prestige Package</span><span class="item-sub" contenteditable="false" data-ph="Desc">Personalized label and Customized Packaging</span></td>
+            <td><span contenteditable="false">10ml</span></td><td><span contenteditable="false">EDT (8% to 15% oil)</span></td>
+            <td class="r"><span class="q-price" contenteditable="false" oninput="recalcQuot()">75.84</span></td>
+            <td class="r"><span class="q-qty" contenteditable="false" oninput="recalcQuot()">100</span></td>
+            <td class="r q-amt"><span class="q-amount">&#8369;7,584.00</span></td>
+            <td class="no-print" style="text-align:center"><button class="pkg-select-btn" onclick="event.stopPropagation();selectPkg(this.closest('tr'))">Select</button></td>
+            <td class="no-print"><button class="del-row" onclick="event.stopPropagation();delRow(this)">&times;</button></td>
+          </tr>
+          <tr onclick="selectPkg(this)" style="cursor:pointer">
+            <td><span class="item-name" contenteditable="false">Package 4 — Elite Package</span> <span class="item-sub" contenteditable="false" data-ph="Desc">Personalized label, Customized Packaging and Digital Invitation Website</span></td>
+            <td><span contenteditable="false">10ml</span></td><td><span contenteditable="false">EDP (15% to 25% oil)</span></td>
+            <td class="r"><span class="q-price" contenteditable="false" oninput="recalcQuot()">83.40</span></td>
+            <td class="r"><span class="q-qty" contenteditable="false" oninput="recalcQuot()">100</span></td>
+            <td class="r q-amt"><span class="q-amount">&#8369;8,340.00</span></td>
+            <td class="no-print" style="text-align:center"><button class="pkg-select-btn" onclick="event.stopPropagation();selectPkg(this.closest('tr'))">Select</button></td>
+            <td class="no-print"><button class="del-row" onclick="event.stopPropagation();delRow(this)">&times;</button></td>
+          </tr>
+        </tbody>
+      </table>
+      <button class="add-row-btn no-print" onclick="addRow('quot')">&#43; Add package option</button>
+    </div>
+
+    <!-- Print-only: selected row -->
+    <table class="quot-print-selected" style="display:none;width:100%;border-collapse:collapse;font-size:13px" id="quot-print-table">
+      <thead><tr style="background:#1A1A2E">
+        <th style="padding:11px 14px;text-align:left;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:#BBB;width:36%">Selected Package</th>
+        <th style="padding:11px 14px;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:#BBB">Size</th>
+        <th style="padding:11px 14px;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:#BBB">Type</th>
+        <th style="padding:11px 14px;text-align:right;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:#BBB">Price / Piece</th>
+        <th style="padding:11px 14px;text-align:right;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:#BBB">Qty</th>
+        <th style="padding:11px 14px;text-align:right;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:#BBB">Total</th>
+      </tr></thead>
+      <tbody><tr style="background:#FFF6F0;outline:2px solid #E94560;outline-offset:-2px">
+        <td style="padding:14px;font-family:'Cormorant Garamond',serif;font-size:15px" id="prt-name">—</td>
+        <td style="padding:14px" id="prt-size">—</td>
+        <td style="padding:14px" id="prt-type">—</td>
+        <td style="padding:14px;text-align:right" id="prt-price">—</td>
+        <td style="padding:14px;text-align:right" id="prt-qty">—</td>
+        <td style="padding:14px;text-align:right;font-weight:600;color:#E94560" id="prt-total">—</td>
+      </tr></tbody>
+    </table>
+
+    <div id="quot-selected-bar" class="selected-summary">
+      <div class="ss-label">Selected Package</div>
+      <div class="ss-value" id="quot-selected-text">None selected</div>
+    </div>
+
+    <div class="totals-block" style="margin-top:0;padding-top:24px;border-top:1px solid var(--line)">
+      <div class="totals-inner">
+        <div class="totals-row" style="font-weight:500;color:var(--dark)"><span>Selected Package Total</span><span id="quot-subtotal">&#8369; &#8212;</span></div>
+        <div class="inc-row"><span class="i-label">Personalization &amp; Label</span><span>Included</span><button class="inc-toggle no-print" onclick="toggleInc(this)">Hide</button></div>
+        <div class="inc-row"><span class="i-label">Customized Packaging</span><span>Included</span><button class="inc-toggle no-print" onclick="toggleInc(this)">Hide</button></div>
+        <div class="inc-row website-inc" id="website-inc-total"><span class="i-label">Digital Invitation Website</span><span>Included</span><button class="inc-toggle no-print" onclick="toggleInc(this)">Hide</button></div>
+        <div class="inc-row"><span class="i-label">Delivery / Logistics</span><span>Included</span><button class="inc-toggle no-print" onclick="toggleInc(this)">Hide</button></div>
+        <div class="totals-row grand"><span class="t-label">Total Amount</span><span class="t-value" id="quot-total">&#8369; &#8212;</span></div>
+        <div class="deposit-box">
+          <span class="deposit-label">50% Downpayment Required</span>
+          <span class="deposit-value" id="quot-deposit">&#8369; &#8212;</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="inclusions-section">
+      <div class="section-label">What&#39;s Included Per Piece</div>
+      <div class="inc-grid">
+        <div class="inc-item"><div class="inc-num">01</div><div><div class="inc-title" contenteditable="false">Premium Fragrance Oil</div><div class="inc-desc" contenteditable="false">EDT or EDP blend, mixed to specification</div></div></div>
+        <div class="inc-item"><div class="inc-num">02</div><div><div class="inc-title" contenteditable="false">Glass Spray Bottle</div><div class="inc-desc" contenteditable="false">5ml or 10ml glass atomizer, selected per package</div></div></div>
+        <div class="inc-item"><div class="inc-num">03</div><div><div class="inc-title" contenteditable="false">Personalized Label</div><div class="inc-desc" contenteditable="false">Custom-printed bottle sticker with guest of honor&#39;s name and event date</div></div></div>
+        <div class="inc-item"><div class="inc-num">04</div><div><div class="inc-title" contenteditable="false">Customized Packaging</div><div class="inc-desc" contenteditable="false">Small paper board that serves as the bottle holder and it can be customized and coordinated to event motif</div></div></div>
+        <div class="inc-item full website-inc" id="website-inc-quot"><div class="inc-num">05</div><div><div class="inc-title" contenteditable="false">Digital Invitation Website</div><div class="inc-desc" contenteditable="false">Personalized event website that serves as digital invitation. Suitable for debut, wedding, or any celebration.</div></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="inv-footer">
+    <div class="footer-note" contenteditable="false">"Thank you for letting us be part of your celebration."</div>
+  </div>
+</div>
+<div class="confirm-bar no-print">
+  <label class="confirm-check"><input type="checkbox" id="cc-quot" onchange="document.getElementById('dl-quot').disabled=!this.checked"> Client has reviewed this quotation</label>
+  <div class="confirm-bar-text"><strong>Ready to send?</strong> Confirm then download as PDF.</div>
+  <button class="tb-btn green" id="dl-quot" disabled onclick="openModal('quot')">&#10003; Download Quotation</button>
+</div>
+</div>
+
+<!-- ══ CONTRACT TAB ══ -->
+<div class="tab-panel hidden-tab" id="panel-cont">
+<div class="quotation-card" id="contract-card">
+
+
+  <div class="inv-header">
+    <div>
+      <img src="logo.png" alt="the scent gallery" style="height:auto;width:auto;filter:invert(1);display:block;margin-bottom:6px"/>
+      
+    </div>
+    <div class="inv-meta">
+      <div class="inv-label">Contract</div>
+      <div class="inv-number" contenteditable="false" data-ph="CT-2026-001">No. CT-2026-001</div>
+      <div class="inv-status" contenteditable="false" data-ph="Status">For Signing</div>
+    </div>
+  </div>
+
+  <div class="accent-stripe"></div>
+  <div class="inv-body">
+    <div style="margin-bottom:36px">
+      <div class="section-label">Client Information</div>
+      <table class="info-table">
+        <tr><td>Event Type</td><td contenteditable="false" data-ph="Debut / Wedding / Other">Debut Celebration</td></tr>
+        <tr><td>Client Name</td><td contenteditable="false" data-ph="Full name" data-empty="true"></td></tr>
+        <tr><td>Event Date</td><td contenteditable="false" data-ph="MM/DD/YYYY" data-empty="true"></td></tr>
+        <tr><td>Event Venue</td><td contenteditable="false" data-ph="Venue" data-empty="true"></td></tr>
+        <tr><td>Contact Number</td><td contenteditable="false" data-ph="+63" data-empty="true"></td></tr>
+        <tr><td>Email Address</td><td contenteditable="false" data-ph="email@example.com" data-empty="true"></td></tr>
+        <tr><td>Number of Guests</td><td contenteditable="false" data-ph="e.g. 100 pax">100 pax</td></tr>
+        <tr><td>Quotation Date</td><td contenteditable="false" data-ph="Date">June 19, 2026</td></tr>
+        <tr><td>Quotation No.</td><td contenteditable="false" data-ph="QT-2026-001">QT-2026-001</td></tr>
+      </table>
+    </div>
+
+    <div style="margin-bottom:32px">
+      <div class="section-label">Selected Package</div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="background:#1A1A2E">
+          <th style="padding:11px 14px;text-align:left;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:#BBB;width:36%">Package</th>
+          <th style="padding:11px 14px;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:#BBB">Size</th>
+          <th style="padding:11px 14px;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:#BBB">Type</th>
+          <th style="padding:11px 14px;text-align:right;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:#BBB">Price / Piece</th>
+          <th style="padding:11px 14px;text-align:right;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:#BBB">Qty</th>
+          <th style="padding:11px 14px;text-align:right;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:#BBB">Total</th>
+        </tr></thead>
+        <tbody><tr style="background:#FFF6F0;outline:2px solid #E94560;outline-offset:-2px">
+          <td style="padding:14px;font-family:'Cormorant Garamond',serif;font-size:15px" id="ct-name">Select a package in the Quotation tab first</td>
+          <td style="padding:14px" id="ct-size">—</td>
+          <td style="padding:14px" id="ct-type">—</td>
+          <td style="padding:14px;text-align:right" id="ct-price">—</td>
+          <td style="padding:14px;text-align:right" id="ct-qty">—</td>
+          <td style="padding:14px;text-align:right;font-weight:600;color:#E94560" id="ct-total">—</td>
+        </tr></tbody>
+      </table>
+    </div>
+
+    <div class="inclusions-section">
+      <div class="section-label">What&#39;s Included Per Piece</div>
+      <div class="inc-grid">
+        <div class="inc-item"><div class="inc-num">01</div><div><div class="inc-title" contenteditable="false">Premium Fragrance Oil</div><div class="inc-desc" contenteditable="false">EDT or EDP blend, mixed to specification</div></div></div>
+        <div class="inc-item"><div class="inc-num">02</div><div><div class="inc-title" contenteditable="false">Glass Spray Bottle</div><div class="inc-desc" contenteditable="false">5ml or 10ml glass atomizer, selected per package</div></div></div>
+        <div class="inc-item"><div class="inc-num">03</div><div><div class="inc-title" contenteditable="false">Personalized Label</div><div class="inc-desc" contenteditable="false">Custom-printed bottle sticker with guest of honor&#39;s name and event date</div></div></div>
+        <div class="inc-item"><div class="inc-num">04</div><div><div class="inc-title" contenteditable="false">Customized Packaging</div><div class="inc-desc" contenteditable="false">Small paper board that serves as the bottle holder and it can be customized and coordinated to event motif</div></div></div>
+        <div class="inc-item full website-inc" id="website-inc-cont"><div class="inc-num">05</div><div><div class="inc-title" contenteditable="false">Digital Invitation Website</div><div class="inc-desc" contenteditable="false">Personalized event website that serves as digital invitation. Suitable for debut, wedding, or any celebration.</div></div></div>
+      </div>
+    </div>
+
+    <div class="terms-section">
+      <div class="section-label">Terms and Conditions</div>
+      <div class="terms-grid">
+        <div class="term-item"><strong>Payment</strong><span contenteditable="false">50% downpayment to confirm order. Balance due upon delivery or pick-up.</span></div>
+        <div class="term-item"><strong>Lead Time</strong><span contenteditable="false">10 to 14 business days from confirmed order and approved design.</span></div>
+        <div class="term-item"><strong>Cancellation</strong><span contenteditable="false">Downpayments are non-refundable once production has commenced.</span></div>
+        <div class="term-item"><strong>Design Approval</strong><span contenteditable="false">Client reviews and approves label design before printing. No changes after approval.</span></div>
+        <div class="term-item"><strong>Revisions</strong><span contenteditable="false">Up to 2 label revisions included. Additional revisions subject to a fee.</span></div>
+        <div class="term-item"><strong>Delivery</strong><span contenteditable="false">Logistics are included. A responsible party must be available to receive the order.</span></div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:32px">
+      <div class="section-label">Order Confirmation and Agreement</div>
+      <div class="contract-section">
+        <div class="contract-title">Agreement to Proceed</div>
+        <div class="contract-body" contenteditable="false">By signing below, the client confirms that they have read, understood, and agreed to all terms stated in this document. This contract serves as a binding agreement upon receipt of the required downpayment.</div>
+        <div class="contract-fields">
+          <div><div class="cf-label">Selected Package</div><div class="cf-value" id="cf-package" contenteditable="false">—</div></div>
+          <div><div class="cf-label">Fragrance Type</div><div class="cf-value" id="cf-type" contenteditable="false">—</div></div>
+		  <div><div class="cf-label">Scents</div><div class="cf-value" contenteditable="false">_______________</div></div>
+          <div><div class="cf-label">Total Amount Due</div><div class="cf-value" id="cf-total" contenteditable="false">&#8369; _______________</div></div>
+          <div><div class="cf-label">50% Downpayment</div><div class="cf-value" id="cf-deposit" contenteditable="false">&#8369; _______________</div></div>
+          <div><div class="cf-label">Balance Upon Delivery</div><div class="cf-value" id="cf-balance" contenteditable="false">&#8369; _______________</div></div>
+          <div><div class="cf-label">Expected Completion Date</div><div class="cf-value" contenteditable="false">_______________</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sig-section">
+      <div><div class="sig-line"></div><div class="sig-label">Client Signature over Printed Name</div></div>
+      <div><div class="sig-line"></div><div class="sig-label">Authorized Representative</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-bottom:44px">
+      <div><div class="sig-line" style="margin-top:0"></div><div class="sig-label">Date Signed</div></div>
+      <div><div class="sig-line" style="margin-top:0"></div><div class="sig-label">Date Signed</div></div>
+    </div>
+  </div>
+  <div class="inv-footer">
+    <div class="footer-note" contenteditable="false">"Thank you for letting us be part of your celebration."</div>
+  </div>
+</div>
+<div class="confirm-bar no-print">
+  <label class="confirm-check"><input type="checkbox" id="cc-cont" onchange="document.getElementById('dl-cont').disabled=!this.checked"> Client has signed and agreed</label>
+  <div class="confirm-bar-text"><strong>Ready to download?</strong> Save this contract as PDF.</div>
+  <button class="tb-btn green" id="dl-cont" disabled onclick="openModal('cont')">&#10003; Download Contract</button>
+</div>
+</div>
+
+<div class="modal-overlay" id="confirm-modal">
+  <div class="modal-box">
+    <div class="modal-icon">&#10003;</div>
+    <div class="modal-title">Ready to Download</div>
+    <div class="modal-body">Choose <strong>Save as PDF</strong> in your browser print dialog.</div>
+    <div class="modal-actions">
+      <button class="modal-btn secondary" onclick="closeModal()">Cancel</button>
+      <button class="modal-btn primary" onclick="closeModal();printTab(currentPrintTab)">Download PDF</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let editingInv=false, editingQuot=false;
+let rowId=20, activeTab='inv', selectedPkgRow=null, currentPrintTab='quot';
+
+function switchTab(tab){
+  activeTab=tab;
+  ['inv','quot','cont'].forEach(t=>{
+    document.getElementById('panel-'+t).classList.toggle('active-tab',t===tab);
+    document.getElementById('panel-'+t).classList.toggle('hidden-tab',t!==tab);
+    document.getElementById('tab-'+t).classList.toggle('active',t===tab);
+  });
+  const editing=tab==='inv'?editingInv:editingQuot;
+  document.getElementById('btn-edit-inv').textContent=editing?'✓ Done Editing':'✎ Edit';
+  document.getElementById('btn-edit-inv').classList.toggle('active',editing);
+  document.getElementById('hint-inv').textContent=editing?'Click any text to edit':'Click Edit to customize';
+}
+
+function toggleEdit(){
+  const t=activeTab;
+  if(t==='inv'){
+    editingInv=!editingInv;
+    const card=document.getElementById('invoice');
+    card.classList.toggle('edit-mode',editingInv);
+    card.querySelectorAll('[contenteditable]').forEach(el=>el.contentEditable=editingInv?'true':'false');
+    bindInfoTableClean(card);
+    document.getElementById('btn-edit-inv').textContent=editingInv?'✓ Done Editing':'✎ Edit';
+    document.getElementById('btn-edit-inv').classList.toggle('active',editingInv);
+    document.getElementById('hint-inv').textContent=editingInv?'Click any text to edit':'Click Edit to customize';
+    recalcInv();
+  } else {
+    editingQuot=!editingQuot;
+    const cards=[document.getElementById('quotation'),document.getElementById('contract-card')];
+    cards.forEach(c=>{
+      if(c){
+        c.classList.toggle('edit-mode',editingQuot);
+        c.querySelectorAll('[contenteditable]').forEach(el=>el.contentEditable=editingQuot?'true':'false');
+        bindInfoTableClean(c);
+      }
+    });
+    document.getElementById('btn-edit-inv').textContent=editingQuot?'✓ Done Editing':'✎ Edit';
+    document.getElementById('btn-edit-inv').classList.toggle('active',editingQuot);
+    document.getElementById('hint-inv').textContent=editingQuot?'Click any text to edit':'Click Edit to customize';
+    recalcQuot();
+  }
+}
+
+function bindInfoTableClean(card){
+  // When user clicks into an empty info-table td, clear data-empty so placeholder hides
+  card.querySelectorAll('table.info-table td[data-empty]').forEach(td=>{
+    td.addEventListener('focus',function(){
+      this.removeAttribute('data-empty');
+    },{once:false});
+    td.addEventListener('blur',function(){
+      if(!this.textContent.trim()){
+        this.textContent='';
+        this.setAttribute('data-empty','true');
+      }
+    },{once:false});
+  });
+}
+
+function addRow(tab){
+  const t=tab||activeTab;
+  if(t==='inv'&&!editingInv)toggleEdit();
+  if(t!=='inv'&&!editingQuot)toggleEdit();
+  const tbody=t==='inv'?document.getElementById('inv-body'):document.getElementById('quot-body');
+  const tr=document.createElement('tr');
+  if(t!=='inv'){tr.style.cursor='pointer';tr.setAttribute('onclick','selectPkg(this)');}
+  if(t==='inv'){
+    tr.innerHTML=`<td><span class="item-name" contenteditable="true">New Item</span><span class="item-sub" contenteditable="true"></span></td><td><span contenteditable="true"></span></td><td><span contenteditable="true"></span></td><td class="r"><span class="unit-price" contenteditable="true" oninput="recalcInv()">0</span></td><td class="r"><span class="qty" contenteditable="true" oninput="recalcInv()">1</span></td><td class="r amount-cell"><span class="amount">&#8369;0.00</span></td><td class="no-print"><button class="del-row" onclick="delRow(this)">&times;</button></td>`;
+  } else {
+    tr.innerHTML=`<td><span class="item-name" contenteditable="true">New Package</span></td><td><span contenteditable="true"></span></td><td><span contenteditable="true"></span></td><td class="r"><span class="q-price" contenteditable="true" oninput="recalcQuot()">0</span></td><td class="r"><span class="q-qty" contenteditable="true" oninput="recalcQuot()">1</span></td><td class="r q-amt"><span class="q-amount">&#8369;0.00</span></td><td class="no-print" style="text-align:center"><button class="pkg-select-btn" onclick="event.stopPropagation();selectPkg(this.closest('tr'))">Select</button></td><td class="no-print"><button class="del-row" onclick="event.stopPropagation();delRow(this)">&times;</button></td>`;
+  }
+  tbody.appendChild(tr);
+  tr.querySelector('[contenteditable]').focus();
+}
+
+function delRow(btn){btn.closest('tr').remove();recalcInv();recalcQuot();}
+
+function fmt(n){return '&#8369;'+n.toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});}
+
+function recalcInv(){
+  let sub=0;
+  document.querySelectorAll('#inv-body tr').forEach(tr=>{
+    const p=parseFloat(tr.querySelector('.unit-price')?.textContent.replace(/[^\d.]/g,''))||0;
+    const q=parseFloat(tr.querySelector('.qty')?.textContent.replace(/[^\d.]/g,''))||0;
+    tr.querySelector('.amount').innerHTML=fmt(p*q);sub+=p*q;
+  });
+  const pct=parseFloat(document.getElementById('inv-dpct').value)/100;
+  document.getElementById('inv-subtotal').innerHTML=fmt(sub);
+  document.getElementById('inv-total').innerHTML=fmt(sub);
+  document.getElementById('inv-deposit').innerHTML=fmt(sub*pct);
+}
+
+function recalcQuot(){
+  document.querySelectorAll('#quot-body tr').forEach(tr=>{
+    const p=parseFloat(tr.querySelector('.q-price')?.textContent.replace(/[^\d.]/g,''))||0;
+    const q=parseFloat(tr.querySelector('.q-qty')?.textContent.replace(/[^\d.]/g,''))||0;
+    tr.querySelector('.q-amount').innerHTML=fmt(p*q);
+  });
+  if(selectedPkgRow&&document.contains(selectedPkgRow))updateQuotTotals(selectedPkgRow);
+}
+
+function selectPkg(tr){
+  document.querySelectorAll('#quot-body tr').forEach(r=>{
+    r.classList.remove('pkg-selected');
+    const b=r.querySelector('.pkg-select-btn');if(b)b.textContent='Select';
+  });
+  tr.classList.add('pkg-selected');
+  const b=tr.querySelector('.pkg-select-btn');if(b)b.textContent='Selected ✓';
+  selectedPkgRow=tr;
+  updateQuotTotals(tr);
+  document.getElementById('quot-selected-bar').classList.add('visible');
+  const name=tr.querySelector('.item-name')?.textContent||'';
+  const size=tr.cells[1]?.textContent||'';
+  const type=tr.cells[2]?.textContent||'';
+  document.getElementById('quot-selected-text').textContent=name+' — '+size+' '+type;
+  const price=tr.querySelector('.q-price')?.textContent||'';
+  const qty=tr.querySelector('.q-qty')?.textContent||'';
+  const total=tr.querySelector('.q-amount')?.innerHTML||'';
+  document.getElementById('prt-name').textContent=name;
+  document.getElementById('prt-size').textContent=size;
+  document.getElementById('prt-type').textContent=type;
+  document.getElementById('prt-price').innerHTML='&#8369;'+price;
+  document.getElementById('prt-qty').textContent=qty;
+  document.getElementById('prt-total').innerHTML=total;
+
+  // Show Digital Invitation Website only for Package 2 and Package 4 (index 1 and 3)
+  const rows=Array.from(document.querySelectorAll('#quot-body tr'));
+  const idx=rows.indexOf(tr);
+  const hasWebsite=(idx===1||idx===3);
+  ['website-inc-quot','website-inc-cont','website-inc-total'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el){el.classList.toggle('visible',hasWebsite);}
+  });
+}
+
+function updateQuotTotals(tr){
+  const p=parseFloat(tr.querySelector('.q-price')?.textContent.replace(/[^\d.]/g,''))||0;
+  const q=parseFloat(tr.querySelector('.q-qty')?.textContent.replace(/[^\d.]/g,''))||0;
+  const total=p*q,dep=total*0.5,bal=total-dep;
+  document.getElementById('quot-subtotal').innerHTML=fmt(total);
+  document.getElementById('quot-total').innerHTML=fmt(total);
+  document.getElementById('quot-deposit').innerHTML=fmt(dep);
+  const name=tr.querySelector('.item-name')?.textContent||'';
+  const size=tr.cells[1]?.textContent||'';
+  const type=tr.cells[2]?.textContent||'';
+  const price=tr.querySelector('.q-price')?.textContent||'';
+  const qty=tr.querySelector('.q-qty')?.textContent||'';
+  const totalHtml=tr.querySelector('.q-amount')?.innerHTML||'';
+  // Sync contract tab
+  document.getElementById('ct-name').textContent=name;
+  document.getElementById('ct-size').textContent=size;
+  document.getElementById('ct-type').textContent=type;
+  document.getElementById('ct-price').innerHTML='&#8369;'+price;
+  document.getElementById('ct-qty').textContent=qty;
+  document.getElementById('ct-total').innerHTML=totalHtml;
+  document.getElementById('cf-package').textContent=name+(type?' — '+type:'');
+  document.getElementById('cf-type').textContent=type;
+  document.getElementById('cf-total').innerHTML=fmt(total);
+  document.getElementById('cf-deposit').innerHTML=fmt(dep);
+  document.getElementById('cf-balance').innerHTML=fmt(bal);
+}
+
+function toggleInc(btn){
+  const row=btn.closest('.inc-row');
+  row.classList.toggle('row-hidden');
+  btn.textContent=row.classList.contains('row-hidden')?'Show':'Hide';
+}
+
+function openModal(tab){currentPrintTab=tab||'quot';document.getElementById('confirm-modal').classList.add('open');}
+function closeModal(){document.getElementById('confirm-modal').classList.remove('open');}
+
+function printTab(tab){
+  ['inv','quot','cont'].forEach(t=>document.getElementById('panel-'+t).classList.toggle('hidden-tab',t!==tab));
+  window.print();
+  setTimeout(()=>['inv','quot','cont'].forEach(t=>document.getElementById('panel-'+t).classList.toggle('hidden-tab',t!==activeTab)),500);
+}
+
+recalcInv();recalcQuot();
+</script>
+</body>
+</html>
